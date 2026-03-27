@@ -4,7 +4,19 @@ on:
     branches:
       - master
 jobs:
+  prep:
+    runs-on: ubuntu-latest
+    outputs:
+      sha_tag: ${{ steps.get_sha.outputs.sha_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+      - id: get_sha
+        run: echo "sha_tag=sha-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
   build-images-for-master:
+    needs: prep
     strategy:
       fail-fast: true
       matrix:
@@ -70,18 +82,19 @@ jobs:
       src_branch: master
       target_tag: master
       arch_tag: ${{ matrix.arch.arch_name }}
-      overwrite_imgs: True
-      set_latest: False
-      add_sha_tag: False
+      overwrite_imgs: 'true'
+      set_latest: 'false'
+      add_sha_tag: 'false'
       app_to_build: ${{ matrix.image.name }}
       image_context: ${{ matrix.image.context }}
       docker_file: ${{ matrix.image.dockerfile }}
       platforms: ${{ matrix.arch.platform }}
       runs_on: ${{ matrix.arch.runs_on }}
       push: true
+      push_by_digest: true
 
   create-manifests:
-    needs: build-images-for-master
+    needs: [prep, build-images-for-master]
     strategy:
       fail-fast: true
       matrix:
@@ -105,3 +118,5 @@ jobs:
       target_tag: master
       app_to_build: ${{ matrix.component.image }}
       set_latest: 'false'
+      add_sha_tag: 'false'
+      sha_tag: ${{ needs.prep.outputs.sha_tag }}
