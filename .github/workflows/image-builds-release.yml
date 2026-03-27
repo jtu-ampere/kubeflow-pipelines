@@ -33,7 +33,19 @@ on:
         description: 'Dry run mode - build images without pushing to registry or creating tags.'
         required: false
 jobs:
+  prep:
+    runs-on: ubuntu-latest
+    outputs:
+      sha_tag: ${{ steps.get_sha.outputs.sha_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.src_branch }}
+      - id: get_sha
+        run: echo "sha_tag=sha-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
   build-images-for-release:
+    needs: prep
     strategy:
       fail-fast: true
       matrix:
@@ -108,9 +120,10 @@ jobs:
       platforms: ${{ matrix.arch.platform }}
       runs_on: ${{ matrix.arch.runs_on }}
       push: ${{ !inputs.dry_run }}
+      push_by_digest: true
 
   create-manifests:
-    needs: build-images-for-release
+    needs: [prep, build-images-for-release]
     if: ${{ !inputs.dry_run }}
     strategy:
       fail-fast: true
@@ -135,3 +148,5 @@ jobs:
       target_tag: ${{ inputs.target_tag }}
       app_to_build: ${{ matrix.component.image }}
       set_latest: ${{ inputs.set_latest }}
+      add_sha_tag: ${{ inputs.add_sha_tag }}
+      sha_tag: ${{ needs.prep.outputs.sha_tag }}
